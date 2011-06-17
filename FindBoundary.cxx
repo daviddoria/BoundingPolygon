@@ -34,6 +34,7 @@
 // VTK
 #include <vtkIdList.h>
 #include <vtkKdTreePointLocator.h>
+#include <vtkMath.h>
 #include <vtkPolyData.h>
 #include <vtkSmartPointer.h>
 #include <vtkVertexGlyphFilter.h>
@@ -108,7 +109,9 @@ int main(int argc, char *argv[])
       {
       continue; // The point is an outlier, skip it
       }
-      
+    
+    //std::cout << "There are " << result->GetNumberOfIds() << " neighbors." << std::endl;
+    
     // Compute the angle from the current point to every point found within 'radius'
     std::vector<float> angles;
     
@@ -119,7 +122,9 @@ int main(int argc, char *argv[])
       double neighbor[3];
       reader->GetOutput()->GetPoint(neighborId, neighbor);
 
-      float angle = atan2(neighbor[0]-currentPoint[0], neighbor[1]-currentPoint[1]); // Get the angle from the currentPoint to p
+      float angle = 180./vtkMath::Pi() * atan2(neighbor[0]-currentPoint[0], neighbor[1]-currentPoint[1]); // Get the angle from the currentPoint to p
+      //std::cout << "angle: " << angle << std::endl;
+    
       angles.push_back(angle);
       } // end neighbor loop
     
@@ -148,6 +153,8 @@ int main(int argc, char *argv[])
 
     } // end main point loop
 
+  std::cout << "There are " << boundaryPoints->GetNumberOfPoints() << " boundary points." << std::endl;
+  
   vtkSmartPointer<vtkPolyData> boundaryPolyData =
     vtkSmartPointer<vtkPolyData>::New();
   boundaryPolyData->SetPoints(boundaryPoints);
