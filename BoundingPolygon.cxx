@@ -35,6 +35,7 @@
 #include <vtkRenderWindow.h>
 #include <vtkRenderer.h>
 #include <vtkSmartPointer.h>
+#include <vtkVertexGlyphFilter.h>
 #include <vtkXMLPolyDataWriter.h>
 
 // ITK
@@ -50,66 +51,7 @@
 #include <boost/graph/dijkstra_shortest_paths.hpp>
 #include <boost/graph/adjacency_list.hpp>
 
-std::vector<unsigned int> RoughOrdering(vtkPolyData* points);
-
-void Visualize(vtkPolyData* graph, vtkPolyData* path);
-
-std::vector<unsigned int> OutlineApproximation(vtkPolyData* points, float straightnessErrorTolerance);
-
-void WriteGraph(Graph& g, vtkPolyData* polydata, std::string filename);
-
-float StraightnessError(Graph g, vtkPolyData* points, unsigned int start, unsigned int end);
-
-std::vector<unsigned int> GetShortestClosedLoop(Graph& g);
-
-int main(int argc, char *argv[])
-{
-  if(argc < 2)
-    {
-    std::cerr << "Required arguments: filename [straightnessErrorTolerance]" << std::endl;
-    return EXIT_FAILURE;
-    }
-    
-  std::string fileName = argv[1];
-  std::cout << "Reading " << fileName << std::endl;
-  
-  float straightnessErrorTolerance = 1.0;
-  if(argc == 3)
-  {
-    std::stringstream ss;
-    ss << argv[2];
-    ss >> straightnessErrorTolerance;
-  }
-  
-  typedef itk::ImageFileReader<ImageType> ReaderType;
-  ReaderType::Pointer reader = ReaderType::New();
-  reader->SetFileName(fileName);
-  reader->Update();
-  
-  std::vector<itk::Index<2> > pixelList = Helpers::BinaryImageToPixelList(reader->GetOutput());
-  std::cout << "pixelList has " << pixelList.size() << " points." << std::endl;
-  
-  vtkSmartPointer<vtkPolyData> polydata = vtkSmartPointer<vtkPolyData>::New();
-  Helpers::PixelListToPolyData(pixelList, polydata);
-  std::cout << "polydata has " << polydata->GetNumberOfPoints() << " points." << std::endl;
-  
-  Helpers::WritePoints(polydata, "points.vtp");
-  
-  std::vector<unsigned int> shortestPath = OutlineApproximation(polydata, straightnessErrorTolerance);
-  std::cout << "shortestPath has " << shortestPath.size() << " points." << std::endl;
-  
-  std::cout << "shortestPath:" << std::endl;
-  Helpers::OutputVector(shortestPath);
-
-  Helpers::WritePathAsLines(shortestPath, polydata, "OutlineApproximation.vtp");
-  //WriteGraph(g, polydata, "OutlineApproximation.vtp");
-  
-  //Visualize(polydata, path);
- 
-  return EXIT_SUCCESS;
-}
-
-std::vector<unsigned int> RoughOrdering(vtkPolyData* allPoints)
+std::vector<unsigned int> GetRoughPath(vtkPoints* allPoints)
 {
   // This function starts at point index 0, and then greedily finds the closest point which has not yet been
   // found. This should hopefully make a reasonable outline of the points.
@@ -201,225 +143,47 @@ std::vector<unsigned int> RoughOrdering(vtkPolyData* allPoints)
   return pointOrder;
 }
 
-std::vector<unsigned int> OutlineApproximation(vtkPolyData* points, float straightnessErrorTolerance)
+void CreateContourFromPointsAndPath(vtkPoints* points, const std::vector<unsigned int>& path, vtkPolyData* contour)
 {
-  // Inputs: graphPolyData
-  // Outputs: std::vector<unsigned int> path
-  
-  std::vector<unsigned int> roughOrder = RoughOrdering(points);
-  //std::cout << "Size of 'roughOrder': " << roughOrder.size() << std::endl;
-  
-  //std::cout << "Rough order: " << std::endl;
-  //Helpers::OutputVector(roughOrder);
-  
-  Helpers::WritePathAsLines(roughOrder, points, "rough.vtp");
-  
-  // Create a graph from the initial rough order
-  Graph g;
-  
-  // We must add vertices from the original rough outline twice (the reason for this is explained later)!
-  
-  for(unsigned int loopCounter = 0; loopCounter < 2; ++loopCounter)
-    {
-    for(unsigned int i = 0; i < roughOrder.size(); ++i)
-      {
-      Graph::vertex_descriptor v = boost::add_vertex(g);
-      g[v].PointId = roughOrder[i];
-      }
-    }
-  
-  //std::cout << "Size of 'vertices': " << boost::num_vertices(g) << std::endl;
-    
-  // Add weighted edges between adjacent vertices
-  for(unsigned int i = 0; i < boost::num_vertices(g) - 1; ++i)
-    {
-    unsigned int currentVertexId = i;
-    unsigned int nextVertexId = i+1;
-  
-    float distance = Helpers::GetDistanceBetweenPoints(points, g[currentVertexId].PointId, g[nextVertexId].PointId);
-
-    EdgeWeightProperty weight(distance);
-    boost::add_edge(currentVertexId, nextVertexId, weight, g);
-    //std::cout << "Added edge between vertices " << currentVertexId << " and " << nextVertexId
-	//      << " which corresponds to points " << g[currentVertexId].PointId << " and " << g[nextVertexId].PointId << std::endl;
-    }
-  
-  // Close the second loop
-  boost::add_edge(boost::num_vertices(g) - 1, 0, 
-		  Helpers::GetDistanceBetweenPoints(points, g[boost::num_vertices(g) - 1].PointId, g[0].PointId), g);
-  
-  WriteGraph(g, points, "OutlineGraph.vtp");
-  
-  // Add all other edges which pass the straightness test
-  
-  for(unsigned int start = 0; start < boost::num_vertices(g); ++start)
-    {
-    for(unsigned int end = start+1; end < boost::num_vertices(g); ++end)
-      {
-      float error = StraightnessError(g, points, start, end);
-      if(error < straightnessErrorTolerance)
-	{
-	// Add an edge between start and end
-	double startPoint[3];
-	double endPoint[3];
-	
-	points->GetPoint(g[start].PointId, startPoint);
-	points->GetPoint(g[end].PointId, endPoint);
-	float distance = sqrt(vtkMath::Distance2BetweenPoints(startPoint, endPoint));
-
-	EdgeWeightProperty weight(distance);
-	boost::add_edge(start, end, weight, g);
-	//std::cout << "Added edge between " << g[start].PointId << " and " << g[end].PointId << std::endl;
-	}
-      }
-    }
-
-  WriteGraph(g, points, "StraigtnessGraph.vtp");
-
-  std::vector<unsigned int> approximateOutline = GetShortestClosedLoop(g);
-  
-  return approximateOutline;
-}
-
-void Visualize(vtkPolyData* graph, vtkPolyData* path)
-{
-  std::cout << "GraphPolyData has " << graph->GetNumberOfCells() << " cells." << std::endl;
-  
-  // Create a mapper and actor
-  vtkSmartPointer<vtkPolyDataMapper> pathMapper = 
-    vtkSmartPointer<vtkPolyDataMapper>::New();
-  pathMapper->SetInputConnection(path->GetProducerPort());
+  // Create a cell array to store the lines in and add the lines to it
+  vtkSmartPointer<vtkCellArray> lines =
+    vtkSmartPointer<vtkCellArray>::New();
  
-  vtkSmartPointer<vtkActor> pathActor = 
-    vtkSmartPointer<vtkActor>::New();
-  pathActor->SetMapper(pathMapper);
-  pathActor->GetProperty()->SetColor(1,0,0); // Red
-  pathActor->GetProperty()->SetLineWidth(4);
-    
-  // Create a mapper and actor
-  vtkSmartPointer<vtkPolyDataMapper> mapper = 
-    vtkSmartPointer<vtkPolyDataMapper>::New();
-  mapper->SetInputConnection(graph->GetProducerPort());
- 
-  vtkSmartPointer<vtkActor> actor = 
-    vtkSmartPointer<vtkActor>::New();
-  actor->SetMapper(mapper);
- 
-  // Create a renderer, render window, and interactor
-  vtkSmartPointer<vtkRenderer> renderer = 
-    vtkSmartPointer<vtkRenderer>::New();
-  vtkSmartPointer<vtkRenderWindow> renderWindow = 
-    vtkSmartPointer<vtkRenderWindow>::New();
-  renderWindow->AddRenderer(renderer);
-  vtkSmartPointer<vtkRenderWindowInteractor> renderWindowInteractor = 
-    vtkSmartPointer<vtkRenderWindowInteractor>::New();
-  renderWindowInteractor->SetRenderWindow(renderWindow);
- 
-  // Add the actor to the scene
-  renderer->AddActor(actor);
-  renderer->AddActor(pathActor);
-  renderer->SetBackground(.3, .6, .3); // Background color green
- 
-  
-  vtkSmartPointer<vtkInteractorStyleTrackballCamera> style = 
-    vtkSmartPointer<vtkInteractorStyleTrackballCamera>::New();
-  renderWindowInteractor->SetInteractorStyle( style );
- 
-  // Render and interact
-  renderWindow->Render();
-  renderWindowInteractor->Start();
-}
-
-float StraightnessError(Graph g, vtkPolyData* points, unsigned int startId, unsigned int endId)
-{
-  // This function finds the sum of the distances from each point between vertices[startId] and vertices[endId]
-  // to the line formed between order[start] and order[end].
-  
-  double startPoint[3];
-  points->GetPoint(g[startId].PointId, startPoint);
-  
-  double endPoint[3];
-  points->GetPoint(g[endId].PointId, endPoint);
-  
-  float totalDistance = 0.;
-  
-  unsigned int numberOfPoints = 0;
-  for(unsigned int i = startId+1; i < endId; ++i)
+  for(unsigned int i = 0; i < path.size() - 1; ++i)
     {
-    double currentPoint[3];
-    points->GetPoint(g[i].PointId, currentPoint);
-  
-    totalDistance += vtkLine::DistanceToLine(currentPoint, startPoint, endPoint);
-    numberOfPoints++;
-    }
-  
-  //return distance; // sum, as in original paper
-  return totalDistance/static_cast<float>(numberOfPoints); // average, makes more sense
-}
-
-
-std::vector<unsigned int> GetShortestClosedLoop(Graph& g)
-{
-  unsigned int numberOfPoints = boost::num_vertices(g)/2;
-  //std::cout << "boost::num_vertices(g)/2 = " << numberOfPoints << std::endl;
-  
-  float shortestPathDistance = std::numeric_limits<float>::max();
-  std::vector<unsigned int> shortestPath;
-  
-  for(unsigned int i = 0; i < numberOfPoints; ++i)
-    {
-    float distance = Helpers::GetShortestPathDistance(g, i, i + numberOfPoints);
-    std::cout << "Distance between " << i << " and " << i + numberOfPoints << " is " << distance << std::endl;
-  
-    if(distance < shortestPathDistance)
-      {
-      shortestPath = Helpers::GetShortestPath(g, i, i + numberOfPoints);
-      }
-    }
-    
-  return shortestPath;
-}
-
-void WriteGraph(Graph& g, vtkPolyData* points, std::string filename)
-{
-  vtkSmartPointer<vtkCellArray> lines = vtkSmartPointer<vtkCellArray>::New();
-    
-  typedef boost::property_map<Graph, boost::vertex_index_t>::type IndexMap;
-  IndexMap index = get(boost::vertex_index, g);
-  
-  typedef boost::graph_traits<Graph>::edge_iterator edge_iter;
-  std::pair<edge_iter, edge_iter> edgePair;
-  for(edgePair = boost::edges(g); edgePair.first != edgePair.second; ++edgePair.first)
-    {
-    vtkSmartPointer<vtkLine> line = vtkSmartPointer<vtkLine>::New();
-    //unsigned int source = index[boost::source(*edgePair.first, g)];
-    //unsigned int target = index[boost::target(*edgePair.first, g)];
-    
-    unsigned int sourcePointId = g[boost::source(*edgePair.first, g)].PointId;
-    unsigned int targetPointId = g[boost::target(*edgePair.first, g)].PointId;
-
-    line->GetPointIds()->SetId(0,sourcePointId);
-    line->GetPointIds()->SetId(1,targetPointId);
+    vtkSmartPointer<vtkLine> line =
+      vtkSmartPointer<vtkLine>::New();
+    line->GetPointIds()->SetId(0,path[i]);
+    line->GetPointIds()->SetId(1,path[i+1]);
     lines->InsertNextCell(line);
-    
-    //std::cout << "Adding line between " << sourcePointId << " and " << targetPointId << std::endl;
     }
-  std::cout << std::endl;
-  
-  // Create a polydata to store everything in
-  vtkSmartPointer<vtkPolyData> polyData = 
-    vtkSmartPointer<vtkPolyData>::New();
-  
-  // Add the points to the dataset
-  polyData->SetPoints(points->GetPoints());
-  
+
+  // Close the loop
+  vtkSmartPointer<vtkLine> line =
+      vtkSmartPointer<vtkLine>::New();
+  line->GetPointIds()->SetId(0,path[path.size()-1]);
+  line->GetPointIds()->SetId(1,0);
+  lines->InsertNextCell(line);
+
+  contour->SetPoints(points);
+
   // Add the lines to the dataset
-  polyData->SetLines(lines);
+  contour->SetLines(lines);
+
+  /*
+  // Add the contour AND the vertices - this doesn't work for some reason - the edges disappear after the vertex filter
+  vtkSmartPointer<vtkPolyData> polydata =
+    vtkSmartPointer<vtkPolyData>::New();
+  polydata->SetPoints(points);
+
+  // Add the lines to the dataset
+  polydata->SetLines(lines);
+
+  vtkSmartPointer<vtkVertexGlyphFilter> vertexGlyphFilter =
+    vtkSmartPointer<vtkVertexGlyphFilter>::New();
+  vertexGlyphFilter->AddInputConnection(polydata->GetProducerPort());
+  vertexGlyphFilter->Update();
   
-  vtkSmartPointer<vtkXMLPolyDataWriter> writer =
-    vtkSmartPointer<vtkXMLPolyDataWriter>::New();
-  writer->SetFileName(filename.c_str());
-  writer->SetInput(polyData);
-  writer->Write();
-   
+  contour->ShallowCopy(vertexGlyphFilter->GetOutput());
+  */
 }

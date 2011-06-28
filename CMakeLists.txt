@@ -19,11 +19,11 @@ INCLUDE_DIRECTORIES(${INCLUDE_DIRECTORIES} ${Boost_INCLUDE_DIRS})
 LINK_DIRECTORIES(${LINK_DIRECTORIES} ${Boost_LIBRARY_DIRS})
 
 #### Executables ####
-ADD_EXECUTABLE(BoundingPolygon BoundingPolygon.cxx Helpers.cxx)
-TARGET_LINK_LIBRARIES(BoundingPolygon vtkHybrid vtkInfovis ${ITK_LIBRARIES})
+ADD_EXECUTABLE(BoundingPolygonExample Example.cxx BoundingPolygon.cxx Helpers.cxx)
+TARGET_LINK_LIBRARIES(BoundingPolygonExample vtkHybrid vtkInfovis ${ITK_LIBRARIES})
 
-ADD_EXECUTABLE(FindBoundary FindBoundary.cxx Helpers.cxx)
-TARGET_LINK_LIBRARIES(FindBoundary vtkHybrid vtkInfovis ${ITK_LIBRARIES})
+ADD_EXECUTABLE(FindBoundaryPoints FindBoundaryPoints.cxx Helpers.cxx)
+TARGET_LINK_LIBRARIES(FindBoundaryPoints vtkHybrid vtkInfovis ${ITK_LIBRARIES})
 
-ADD_EXECUTABLE(ImageToPoints ImageToPoints.cxx Helpers.cxx)
-TARGET_LINK_LIBRARIES(ImageToPoints vtkHybrid vtkInfovis ${ITK_LIBRARIES})
+ADD_EXECUTABLE(CreateContourFromPointsAndPath CreateContourFromPointsAndPath.cxx BoundingPolygon.cxx Helpers.cxx)
+TARGET_LINK_LIBRARIES(CreateContourFromPointsAndPath vtkHybrid vtkInfovis ${ITK_LIBRARIES})
