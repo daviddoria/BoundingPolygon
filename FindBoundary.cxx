@@ -161,7 +161,7 @@ int main(int argc, char *argv[])
   
   vtkSmartPointer<vtkVertexGlyphFilter> glyphFilter =
     vtkSmartPointer<vtkVertexGlyphFilter>::New();
-  glyphFilter->SetInputConnection(boundaryPolyData->GetProducerPort());
+  glyphFilter->SetInputData(boundaryPolyData);
   glyphFilter->Update();
   
   vtkSmartPointer<vtkXMLPolyDataWriter> writer =

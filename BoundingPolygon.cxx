@@ -288,7 +288,7 @@ void Visualize(vtkPolyData* graph, vtkPolyData* path)
   // Create a mapper and actor
   vtkSmartPointer<vtkPolyDataMapper> pathMapper = 
     vtkSmartPointer<vtkPolyDataMapper>::New();
-  pathMapper->SetInputConnection(path->GetProducerPort());
+  pathMapper->SetInputData(path);
  
   vtkSmartPointer<vtkActor> pathActor = 
     vtkSmartPointer<vtkActor>::New();
@@ -299,7 +299,7 @@ void Visualize(vtkPolyData* graph, vtkPolyData* path)
   // Create a mapper and actor
   vtkSmartPointer<vtkPolyDataMapper> mapper = 
     vtkSmartPointer<vtkPolyDataMapper>::New();
-  mapper->SetInputConnection(graph->GetProducerPort());
+  mapper->SetInputData(graph);
  
   vtkSmartPointer<vtkActor> actor = 
     vtkSmartPointer<vtkActor>::New();
@@ -419,7 +419,7 @@ void WriteGraph(Graph& g, vtkPolyData* points, std::string filename)
   vtkSmartPointer<vtkXMLPolyDataWriter> writer =
     vtkSmartPointer<vtkXMLPolyDataWriter>::New();
   writer->SetFileName(filename.c_str());
-  writer->SetInput(polyData);
+  writer->SetInputData(polyData);
   writer->Write();
    
 }

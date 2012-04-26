@@ -196,13 +196,13 @@ void WritePoints(vtkPolyData* polydata, std::string filename)
   
   vtkSmartPointer<vtkVertexGlyphFilter> glyphFilter =
     vtkSmartPointer<vtkVertexGlyphFilter>::New();
-  glyphFilter->SetInputConnection(polydata->GetProducerPort());
+  glyphFilter->SetInputData(polydata);
   glyphFilter->Update();
   
   vtkSmartPointer<vtkXMLPolyDataWriter> writer =
     vtkSmartPointer<vtkXMLPolyDataWriter>::New();
   writer->SetFileName(filename.c_str());
-  writer->SetInput(glyphFilter->GetOutput());
+  writer->SetInputData(glyphFilter->GetOutput());
   writer->Write();
 }
 
@@ -236,7 +236,7 @@ void WritePathAsPolyLine(std::vector<unsigned int> order, vtkPolyData* graphPoly
   vtkSmartPointer<vtkXMLPolyDataWriter> writer =
     vtkSmartPointer<vtkXMLPolyDataWriter>::New();
   writer->SetFileName(filename.c_str());
-  writer->SetInput(polyData);
+  writer->SetInputData(polyData);
   writer->Write();
    
 }
@@ -249,7 +249,7 @@ void WritePathAsLines(std::vector<unsigned int> order, vtkPolyData* polyData, st
 
   for(unsigned int i = 0; i < order.size(); ++i)
     {
-    
+
     vtkSmartPointer<vtkLine> line = vtkSmartPointer<vtkLine>::New();
 
     line->GetPointIds()->SetId(0,order[i]);
@@ -264,22 +264,22 @@ void WritePathAsLines(std::vector<unsigned int> order, vtkPolyData* polyData, st
 
     lines->InsertNextCell(line);
     }
-    
+
   vtkSmartPointer<vtkPolyData> outputPolyData = 
     vtkSmartPointer<vtkPolyData>::New();
-  
+
   // Add the points to the dataset
   outputPolyData->SetPoints(polyData->GetPoints());
-  
+
   // Add the lines to the dataset
   outputPolyData->SetLines(lines);
-    
+
   vtkSmartPointer<vtkXMLPolyDataWriter> writer =
     vtkSmartPointer<vtkXMLPolyDataWriter>::New();
   writer->SetFileName(filename.c_str());
-  writer->SetInput(outputPolyData);
+  writer->SetInputData(outputPolyData);
   writer->Write();
-   
+
 }
 
 } // end namespace Helpers
