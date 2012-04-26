@@ -29,26 +29,6 @@ void PixelListToPolyData(std::vector<itk::Index<2> > pixelList, vtkSmartPointer<
   //std::cout << "There are " << polydata->GetNumberOfPoints() << " points." << std::endl;
 }
 
-std::vector<itk::Index<2> > BinaryImageToPixelList(ImageType::Pointer image)
-{
-  std::vector<itk::Index<2> > pixelList;
-
-  itk::ImageRegionConstIterator<ImageType> imageIterator(image, image->GetLargestPossibleRegion());
-
-  while(!imageIterator.IsAtEnd())
-    {
-    if(imageIterator.Get() == 0) // All black pixels are considered points
-      {
-      pixelList.push_back(imageIterator.GetIndex());
-      }
-
-    ++imageIterator;
-    }
-    
-  //std::cout << "There are " << pixelList.size() << " points." << std::endl;
-  
-  return pixelList;
-}
 
 
 unsigned int FindKeyByValue(std::map <unsigned int, unsigned int> myMap, unsigned int value)
@@ -83,93 +63,6 @@ unsigned int CountFalse(std::vector<bool> boolVector)
   return numberFalse;
 }
 
-std::vector<unsigned int> GetShortestPath(Graph& g, Graph::vertex_descriptor start, Graph::vertex_descriptor end)
-{
-  std::cout << "There are " << boost::num_vertices(g) << " vertices in the graph." << std::endl;
-  
-  // Create things for Dijkstra
-  std::vector<Graph::vertex_descriptor> parents(boost::num_vertices(g)); // To store parents
-  std::vector<WeightType> distances(boost::num_vertices(g)); // To store distances
-
-  // Compute shortest paths from 'start' to all vertices, and store the output in parents and distances
-  boost::dijkstra_shortest_paths(g, start, boost::predecessor_map(&parents[0]).distance_map(&distances[0]));
-
-  // Output distances and parents for inspection
-//   std::cout << "distances and parents:" << std::endl;
-//   boost::graph_traits < Graph >::vertex_iterator vertexIterator, vend;
-//   for (boost::tie(vertexIterator, vend) = boost::vertices(g); vertexIterator != vend; ++vertexIterator) 
-//   {
-//     std::cout << "distance(" << *vertexIterator << ") = " << distances[*vertexIterator] << ", ";
-//     std::cout << "parent(" << *vertexIterator << ") = " << parents[*vertexIterator] << std::endl;
-//   }
-//   std::cout << std::endl;
-  
-  // Create a vector in which to store the path
-  std::vector<unsigned int> shortestPath;
-  
-  // Start at the end and work back to the beginning (aka Backtracking algorithm)
-  Graph::vertex_descriptor currentVertex = end;
-  
-  //std::cout << "Starting at " << currentVertex << " and looking for " << start << std::endl;
-
-  /* Work in vertexId space:
-  while(parents[currentVertex] != start)
-  {
-    std::cout << "currentVertex: " << currentVertex << std::endl;
-    std::cout << "current parent: " << parents[currentVertex] << std::endl;
-    shortestPath.push_back(currentVertex);
-    currentVertex = parents[currentVertex];
-  }
-  
-  // The next to last vertex will not be added (one after 'start'), so add it manually
-  shortestPath.push_back(currentVertex);
-  
-  // Add the 'start' vertex to the path
-  shortestPath.push_back(start);
-  */
-  
-  // Work in pointId space:
-  while(parents[currentVertex] != start)
-  {
-    shortestPath.push_back(g[currentVertex].PointId);
-    currentVertex = parents[currentVertex];
-  }
-  
-  // The next to last vertex will not be added (one after 'start'), so add it manually
-  shortestPath.push_back(g[currentVertex].PointId);
-  
-  // Add the 'start' vertex to the path
-  shortestPath.push_back(g[start].PointId);
-  
-  std::reverse (shortestPath.begin( ), shortestPath.end( ) );
-  
-  return shortestPath;
-}
-
-
-float GetShortestPathDistance(Graph& g, Graph::vertex_descriptor start, Graph::vertex_descriptor end)
-{
-  //std::cout << "There are " << boost::num_vertices(g) << " vertices in the graph." << std::endl;
-  
-  // Create things for Dijkstra
-  std::vector<Graph::vertex_descriptor> parents(boost::num_vertices(g)); // To store parents
-  std::vector<int> distances(boost::num_vertices(g)); // To store distances
-
-  // Compute shortest paths from 'start' to all vertices, and store the output in parents and distances
-  boost::dijkstra_shortest_paths(g, start, boost::predecessor_map(&parents[0]).distance_map(&distances[0]));
-
-  // Output distances and parents for inspection
-//   std::cout << "distances and parents:" << std::endl;
-//   boost::graph_traits < Graph >::vertex_iterator vertexIterator, vend;
-//   for (boost::tie(vertexIterator, vend) = boost::vertices(g); vertexIterator != vend; ++vertexIterator) 
-//   {
-//     std::cout << "distance(" << *vertexIterator << ") = " << distances[*vertexIterator] << ", ";
-//     std::cout << "parent(" << *vertexIterator << ") = " << parents[*vertexIterator] << std::endl;
-//   }
-//   std::cout << std::endl;
-
-  return distances[end];
-}
 
 float GetDistanceBetweenPoints(vtkPolyData* polydata, vtkIdType a, vtkIdType b)
 {
